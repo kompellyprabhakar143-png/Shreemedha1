@@ -1,1034 +1,552 @@
-import React, { useState, useEffect } from "react";
-
-const STORAGE_KEY = "shreemedha_studyhall_students";
-
-const initialStudents = [
-  {
-    id: 1,
-    name: "Kompelli Prasad",
-    mobile: "9908440035",
-    amount: 1500,
-    joinDate: "2026-10-01",
-    dueDate: "2026-11-05",
-    status: "Pending",
-  },
-  {
-    id: 2,
-    name: "Lavanya",
-    mobile: "8179341203",
-    amount: 1500,
-    joinDate: "2026-09-25",
-    dueDate: "2026-11-01",
-    status: "Paid",
-  },
-];
-
-function loadStudents() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-
-    if (saved !== null) {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : initialStudents;
-    }
-  } catch (error) {
-    console.error("Unable to load student records:", error);
-  }
-
-  return initialStudents;
-}
-
-function formatDate(dateString) {
-  if (!dateString) return "-";
-
-  const date = new Date(`${dateString}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) return dateString;
-
-  return date.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatAmount(amount) {
-  return Number(amount || 0).toLocaleString("en-IN");
-}
-
-function createReminderMessage(student) {
-  return (
-    `Dear Student and Aspirant ${student.name}, ` +
-    `this is a gentle reminder from Shree Medha Study Hall. ` +
-    `Your joining date was ${formatDate(student.joinDate)}, ` +
-    `and your study hall fee of ₹${formatAmount(student.amount)} ` +
-    `is due on ${formatDate(student.dueDate)}. ` +
-    `Kindly clear your dues on or before the due date. Thank you!`
-  );
-}
-
-function openWhatsApp(student) {
-  const mobile = String(student.mobile || "").replace(/\D/g, "");
-
-  if (!/^\d{10}$/.test(mobile)) {
-    alert(
-      `Please check the 10-digit mobile number for ${student.name}.`
-    );
-    return;
-  }
-
-  const message = createReminderMessage(student);
-  const url =
-    `https://wa.me/91${mobile}?text=${encodeURIComponent(message)}`;
-
-  window.open(url, "_blank", "noopener,noreferrer");
-}
+import React, { useState, useEffect } from 'react';
 
 export default function StudyHallPayments() {
-  const [students, setStudents] = useState(loadStudents);
-
-  const [form, setForm] = useState({
-    name: "",
-    mobile: "",
-    amount: "",
-    joinDate: "",
-    dueDate: "",
+  const [students, setStudents] = useState(() => {
+    const saved = localStorage.getItem('shreemedha_studyhall_students');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 1, name: 'Jyothsna', mobile: '9703978281', amount: 1000, joinDate: '2026-08-10', dueDate: '2026-10-25', status: 'Pending' },
+      { id: 2, name: 'Sampath', mobile: '9966345438', amount: 1000, joinDate: '2026-08-14', dueDate: '2026-10-13', status: 'Pending' },
+      { id: 3, name: 'Pavan', mobile: '9063706527', amount: 1000, joinDate: '2026-08-12', dueDate: '2026-10-11', status: 'Pending' },
+      { id: 4, name: 'Kompelli Prasad', mobile: '9908440035', amount: 1500, joinDate: '2026-10-01', dueDate: '2026-11-05', status: 'Pending' },
+      { id: 5, name: 'Lavanya', mobile: '8179341203', amount: 1500, joinDate: '2026-09-25', dueDate: '2026-11-01', status: 'Paid' }
+    ];
   });
 
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("All");
-  const [notice, setNotice] = useState("");
+  const [form, setForm] = useState({ name: '', mobile: '', amount: '1000', joinDate: '', dueDate: '' });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
-    } catch (error) {
-      console.error("Unable to save student records:", error);
-      setNotice("Unable to save records. Please check browser storage.");
-    }
+    localStorage.setItem('shreemedha_studyhall_students', JSON.stringify(students));
   }, [students]);
 
-  const updateForm = (field, value) => {
-    setForm((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
-  };
+  // Statistics Calculations
+  const totalStudents = students.length;
+  const totalFees = students.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const feesCollected = students
+    .filter(s => s.status === 'Paid')
+    .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const pendingFees = students
+    .filter(s => s.status === 'Pending')
+    .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-
-    const name = form.name.trim();
-    const mobile = form.mobile.replace(/\D/g, "");
-    const amount = Number(form.amount);
-
-    if (!name || !form.joinDate || !form.dueDate) {
-      setNotice("Please fill in all the required fields.");
-      return;
-    }
-
-    if (!/^\d{10}$/.test(mobile)) {
-      setNotice("Please enter a valid 10-digit Indian mobile number.");
-      return;
-    }
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setNotice("Please enter a valid fee amount.");
-      return;
-    }
-
-    if (form.dueDate < form.joinDate) {
-      setNotice("The due date cannot be earlier than the joining date.");
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.name || !form.mobile || !form.amount) {
+      alert('దయచేసి విద్యార్థి పేరు, మొబైల్ నంబర్ మరియు ఫీజు నమోదు చేయండి.');
       return;
     }
 
     const newStudent = {
       id: Date.now(),
-      name,
-      mobile,
-      amount,
-      joinDate: form.joinDate,
-      dueDate: form.dueDate,
-      status: "Pending",
+      name: form.name,
+      mobile: form.mobile,
+      amount: Number(form.amount),
+      joinDate: form.joinDate || new Date().toISOString().split('T')[0],
+      dueDate: form.dueDate || new Date().toISOString().split('T')[0],
+      status: 'Pending'
     };
 
-    setStudents((previous) => [newStudent, ...previous]);
-
-    setForm({
-      name: "",
-      mobile: "",
-      amount: "",
-      joinDate: "",
-      dueDate: "",
-    });
-
-    setNotice(`${name} has been added successfully.`);
+    setStudents([newStudent, ...students]);
+    setForm({ name: '', mobile: '', amount: '1000', joinDate: '', dueDate: '' });
   };
 
   const toggleStatus = (id) => {
-    setStudents((previous) =>
-      previous.map((student) =>
-        student.id === id
-          ? {
-              ...student,
-              status:
-                student.status === "Paid" ? "Pending" : "Paid",
-            }
-          : student
-      )
-    );
-
-    setNotice("Student payment status updated.");
+    setStudents(students.map(s => 
+      s.id === id ? { ...s, status: s.status === 'Paid' ? 'Pending' : 'Paid' } : s
+    ));
   };
 
   const deleteStudent = (id) => {
-    const student = students.find((item) => item.id === id);
-
-    if (!student) return;
-
-    const confirmed = window.confirm(
-      `Delete the record for ${student.name}?`
-    );
-
-    if (!confirmed) return;
-
-    setStudents((previous) =>
-      previous.filter((item) => item.id !== id)
-    );
-
-    setNotice("Student record deleted.");
+    if (window.confirm('ఈ రికార్డును తొలగించాలనుకుంటున్నారా?')) {
+      setStudents(students.filter(s => s.id !== id));
+    }
   };
 
-  const sendSingleAlert = (student) => {
-    openWhatsApp(student);
+  const sendWhatsAppAlert = (student) => {
+    const cleanMobile = student.mobile.replace(/[^0-9]/g, '');
+    const phone = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
+    const message = `Dear student and aspirant ${student.name}, this is a gentle reminder from Shree Medha StudyHall. Your join date was ${student.joinDate} and your studyhall fee of ₹${student.amount.toLocaleString('en-IN')} is due on ${student.dueDate}. Please clear your dues at the earliest. Thank you!`;
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
   };
 
   const sendAllPendingAlerts = () => {
-    const pendingStudents = students.filter(
-      (student) => student.status === "Pending"
-    );
-
+    const pendingStudents = students.filter(s => s.status === 'Pending');
     if (pendingStudents.length === 0) {
-      alert("There are no pending student payments.");
+      alert('No pending students found to send alerts!');
       return;
     }
 
-    const confirmed = window.confirm(
-      `You have ${pendingStudents.length} pending student(s).\n\n` +
-        "WhatsApp will open for each student. " +
-        "Please send each message manually."
-    );
-
-    if (!confirmed) return;
-
-    // Open one WhatsApp reminder at a time.
-    // This helps avoid browser popup blocking.
-    openWhatsApp(pendingStudents[0]);
-
-    if (pendingStudents.length > 1) {
-      let index = 1;
-
-      const openNext = () => {
-        if (index >= pendingStudents.length) return;
-
-        const student = pendingStudents[index];
-
-        const nextConfirmed = window.confirm(
-          `Open WhatsApp reminder for ${student.name}?\n\n` +
-            `${index + 1} of ${pendingStudents.length}`
-        );
-
-        if (nextConfirmed) {
-          openWhatsApp(student);
-        }
-
-        index++;
-
-        if (index < pendingStudents.length) {
-          openNext();
-        }
-      };
-
-      // The next reminder is opened after the user confirms.
-      window.setTimeout(openNext, 300);
-    }
+    pendingStudents.forEach((student, index) => {
+      const cleanMobile = student.mobile.replace(/[^0-9]/g, '');
+      const phone = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
+      const message = `Dear student and aspirant ${student.name}, this is a gentle reminder from Shree Medha StudyHall. Your join date was ${student.joinDate} and your studyhall fee of ₹${student.amount.toLocaleString('en-IN')} is due on ${student.dueDate}. Please clear your dues at the earliest. Thank you!`;
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+      
+      setTimeout(() => {
+        window.open(url, '_blank');
+      }, index * 800);
+    });
   };
 
-  const filteredStudents = students.filter((student) => {
-    const query = search.toLowerCase().trim();
-
-    const matchesSearch =
-      student.name.toLowerCase().includes(query) ||
-      student.mobile.includes(query);
-
-    const matchesFilter =
-      filter === "All" || student.status === filter;
-
-    return matchesSearch && matchesFilter;
+  const filteredStudents = students.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.mobile.includes(searchTerm);
+    const matchesStatus = filterStatus === 'All' ? true : s.status === filterStatus;
+    return matchesSearch && matchesStatus;
   });
 
-  const totalFees = students.reduce(
-    (total, student) => total + Number(student.amount || 0),
-    0
-  );
-
-  const paidFees = students
-    .filter((student) => student.status === "Paid")
-    .reduce(
-      (total, student) => total + Number(student.amount || 0),
-      0
-    );
-
-  const pendingFees = students
-    .filter((student) => student.status === "Pending")
-    .reduce(
-      (total, student) => total + Number(student.amount || 0),
-      0
-    );
-
   return (
-    <main style={styles.page}>
-      <div style={styles.container}>
-        <header style={styles.banner}>
-          <div style={styles.bannerContent}>
-            <div style={styles.brandIcon}>SM</div>
+    <div style={styles.container}>
+      {/* Banner / Header */}
+      <div style={styles.banner}>
+        <div style={styles.overlay}>
+          <span style={styles.badgeTop}>✨ QUIET ENVIRONMENT • HIGH PRODUCTIVITY</span>
+          <h1 style={styles.title}>Shree Medha <span style={styles.highlight}>StudyHall</span></h1>
+          <p style={styles.subtitle}>Monthly Fee Payments & Student Reminders Dashboard</p>
+        </div>
+      </div>
 
-            <p style={styles.eyebrow}>
-              QUIET ENVIRONMENT • HIGH PRODUCTIVITY
-            </p>
-
-            <h1 style={styles.title}>
-              Shree Medha
-              <span style={styles.highlight}> StudyHall</span>
-            </h1>
-
-            <p style={styles.subtitle}>
-              Student Fee Management & Payment Reminders
-            </p>
+      {/* Stat Cards Overview */}
+      <div style={styles.statsGrid}>
+        <div style={styles.statCard}>
+          <div style={styles.statIcon}>👤</div>
+          <div>
+            <div style={styles.statLabel}>Total Students</div>
+            <div style={styles.statValue}>{totalStudents}</div>
           </div>
-        </header>
+        </div>
 
-        {notice && (
-          <div style={styles.notice} role="status">
-            <span>{notice}</span>
-            <button
-              type="button"
-              style={styles.noticeClose}
-              onClick={() => setNotice("")}
-              aria-label="Dismiss notification"
-            >
-              ×
-            </button>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statIcon, backgroundColor: '#fef3c7', color: '#d97706' }}>💰</div>
+          <div>
+            <div style={styles.statLabel}>Total Fees</div>
+            <div style={styles.statValue}>₹{totalFees.toLocaleString('en-IN')}</div>
           </div>
-        )}
+        </div>
 
-        <section style={styles.statsGrid}>
-          <StatCard
-            title="Total Students"
-            value={students.length}
-            color="#2563eb"
-            icon="👨‍🎓"
-          />
-
-          <StatCard
-            title="Total Fees"
-            value={`₹${formatAmount(totalFees)}`}
-            color="#7c3aed"
-            icon="💰"
-          />
-
-          <StatCard
-            title="Fees Collected"
-            value={`₹${formatAmount(paidFees)}`}
-            color="#059669"
-            icon="✅"
-          />
-
-          <StatCard
-            title="Pending Fees"
-            value={`₹${formatAmount(pendingFees)}`}
-            color="#dc2626"
-            icon="⏳"
-          />
-        </section>
-
-        <section style={styles.card}>
-          <div style={styles.sectionHeading}>
-            <div>
-              <h2 style={styles.cardTitle}>Add New Student</h2>
-              <p style={styles.muted}>
-                Enter student details and monthly fee information.
-              </p>
-            </div>
-
-            <span style={styles.headingIcon}>＋</span>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statIcon, backgroundColor: '#dcfce7', color: '#16a34a' }}>✅</div>
+          <div>
+            <div style={styles.statLabel}>Fees Collected</div>
+            <div style={{ ...styles.statValue, color: '#16a34a' }}>₹{feesCollected.toLocaleString('en-IN')}</div>
           </div>
+        </div>
 
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <FormField label="Student Name">
-              <input
-                type="text"
-                placeholder="Enter student name"
-                value={form.name}
-                onChange={(event) =>
-                  updateForm("name", event.target.value)
-                }
-                style={styles.input}
-                required
-              />
-            </FormField>
-
-            <FormField label="Mobile Number">
-              <input
-                type="tel"
-                inputMode="numeric"
-                placeholder="10-digit mobile number"
-                value={form.mobile}
-                onChange={(event) =>
-                  updateForm(
-                    "mobile",
-                    event.target.value.replace(/\D/g, "").slice(0, 10)
-                  )
-                }
-                style={styles.input}
-                maxLength={10}
-                required
-              />
-            </FormField>
-
-            <FormField label="Monthly Fee (₹)">
-              <input
-                type="number"
-                min="1"
-                step="1"
-                placeholder="e.g. 1500"
-                value={form.amount}
-                onChange={(event) =>
-                  updateForm("amount", event.target.value)
-                }
-                style={styles.input}
-                required
-              />
-            </FormField>
-
-            <FormField label="Joining Date">
-              <input
-                type="date"
-                value={form.joinDate}
-                onChange={(event) =>
-                  updateForm("joinDate", event.target.value)
-                }
-                style={styles.input}
-                required
-              />
-            </FormField>
-
-            <FormField label="Fee Due Date">
-              <input
-                type="date"
-                min={form.joinDate || undefined}
-                value={form.dueDate}
-                onChange={(event) =>
-                  updateForm("dueDate", event.target.value)
-                }
-                style={styles.input}
-                required
-              />
-            </FormField>
-
-            <div style={styles.formButtonWrapper}>
-              <button type="submit" style={styles.addButton}>
-                ＋ Add Student
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section style={styles.card}>
-          <div style={styles.sectionHeading}>
-            <div>
-              <h2 style={styles.cardTitle}>Payment Records</h2>
-              <p style={styles.muted}>
-                Manage student fees and send WhatsApp reminders.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={sendAllPendingAlerts}
-              style={styles.bulkButton}
-            >
-              💬 Remind Pending Students
-            </button>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statIcon, backgroundColor: '#fee2e2', color: '#dc2626' }}>⏳</div>
+          <div>
+            <div style={styles.statLabel}>Pending Fees</div>
+            <div style={{ ...styles.statValue, color: '#dc2626' }}>₹{pendingFees.toLocaleString('en-IN')}</div>
           </div>
+        </div>
+      </div>
 
-          <div style={styles.toolbar}>
+      {/* Add New Student Card */}
+      <div style={styles.card}>
+        <h2 style={styles.cardTitle}>➕ Add New Student</h2>
+        <form onSubmit={handleSubmit} style={styles.form}>
+          <div>
+            <label style={styles.label}>Student Name</label>
             <input
-              type="search"
-              placeholder="Search by student name or mobile..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              style={styles.searchInput}
+              type="text"
+              placeholder="e.g. Rahul Sharma"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              style={styles.input}
             />
-
-            <select
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              style={styles.select}
-              aria-label="Filter payment status"
-            >
-              <option value="All">All Students</option>
-              <option value="Paid">Paid</option>
-              <option value="Pending">Pending</option>
-            </select>
           </div>
+          <div>
+            <label style={styles.label}>Mobile Number</label>
+            <input
+              type="tel"
+              placeholder="10-digit mobile"
+              value={form.mobile}
+              onChange={(e) => setForm({ ...form, mobile: e.target.value })}
+              style={styles.input}
+            />
+          </div>
+          <div>
+            <label style={styles.label}>Amount (₹)</label>
+            <input
+              type="number"
+              placeholder="₹ 1500"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              style={styles.input}
+            />
+          </div>
+          <div>
+            <label style={styles.label}>Join Date</label>
+            <input
+              type="date"
+              value={form.joinDate}
+              onChange={(e) => setForm({ ...form, joinDate: e.target.value })}
+              style={styles.input}
+            />
+          </div>
+          <div>
+            <label style={styles.label}>Due Date</label>
+            <input
+              type="date"
+              value={form.dueDate}
+              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+              style={styles.input}
+            />
+          </div>
+          <button type="submit" style={styles.addButton}>Add Student</button>
+        </form>
+      </div>
 
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
-              <thead>
+      {/* Payment Records Card */}
+      <div style={styles.card}>
+        <div style={styles.cardHeaderRow}>
+          <h2 style={styles.cardTitle}>📋 Payment Records ({filteredStudents.length})</h2>
+          <button onClick={sendAllPendingAlerts} style={styles.bulkWhatsappBtn}>
+            💬 Send Bulk WhatsApp Alerts (Pending)
+          </button>
+        </div>
+
+        {/* Search & Filter Options */}
+        <div style={styles.filterRow}>
+          <input 
+            type="text" 
+            placeholder="Search student name or mobile..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={styles.searchInput}
+          />
+          <select 
+            value={filterStatus} 
+            onChange={(e) => setFilterStatus(e.target.value)}
+            style={styles.filterSelect}
+          >
+            <option value="All">All Status</option>
+            <option value="Pending">Pending Only</option>
+            <option value="Paid">Paid Only</option>
+          </select>
+        </div>
+
+        <div style={styles.tableWrapper}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.trHead}>
+                <th style={styles.th}>Student Name</th>
+                <th style={styles.th}>Mobile</th>
+                <th style={styles.th}>Amount</th>
+                <th style={styles.th}>Join Date</th>
+                <th style={styles.th}>Due Date</th>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStudents.length === 0 ? (
                 <tr>
-                  <th style={styles.th}>Student</th>
-                  <th style={styles.th}>Mobile</th>
-                  <th style={styles.th}>Fee Amount</th>
-                  <th style={styles.th}>Join Date</th>
-                  <th style={styles.th}>Due Date</th>
-                  <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Actions</th>
+                  <td colSpan="7" style={styles.empty}>No records found.</td>
                 </tr>
-              </thead>
-
-              <tbody>
-                {filteredStudents.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={styles.empty}>
-                      No student records found.
+              ) : (
+                filteredStudents.map((student) => (
+                  <tr key={student.id} style={styles.tr}>
+                    <td style={{ ...styles.td, fontWeight: '600', color: '#111827' }}>{student.name}</td>
+                    <td style={styles.td}>{student.mobile}</td>
+                    <td style={{ ...styles.td, fontWeight: '600', color: '#047857' }}>₹{Number(student.amount).toLocaleString('en-IN')}</td>
+                    <td style={styles.td}>{student.joinDate}</td>
+                    <td style={styles.td}>{student.dueDate}</td>
+                    <td style={styles.td}>
+                      <span style={{
+                        ...styles.badge, 
+                        backgroundColor: student.status === 'Paid' ? '#d1e7dd' : '#f8d7da',
+                        color: student.status === 'Paid' ? '#0f5132' : '#842029'
+                      }}>
+                        {student.status === 'Paid' ? '✅ Paid' : '⏳ Pending'}
+                      </span>
                     </td>
-                  </tr>
-                ) : (
-                  filteredStudents.map((student) => (
-                    <tr key={student.id}>
-                      <td style={styles.td}>
-                        <strong style={styles.studentName}>
-                          {student.name}
-                        </strong>
-                      </td>
-
-                      <td style={styles.td}>{student.mobile}</td>
-
-                      <td style={styles.amountCell}>
-                        ₹{formatAmount(student.amount)}
-                      </td>
-
-                      <td style={styles.td}>
-                        {formatDate(student.joinDate)}
-                      </td>
-
-                      <td style={styles.td}>
-                        {formatDate(student.dueDate)}
-                      </td>
-
-                      <td style={styles.td}>
-                        <span
+                    <td style={styles.td}>
+                      <div style={styles.actionGroup}>
+                        <button 
+                          onClick={() => toggleStatus(student.id)} 
                           style={{
-                            ...styles.badge,
-                            ...(student.status === "Paid"
-                              ? styles.paidBadge
-                              : styles.pendingBadge),
+                            ...styles.actionBtn,
+                            backgroundColor: student.status === 'Paid' ? '#6b7280' : '#2563eb'
                           }}
                         >
-                          {student.status === "Paid"
-                            ? "✓ Paid"
-                            : "● Pending"}
-                        </span>
-                      </td>
-
-                      <td style={styles.td}>
-                        <div style={styles.actions}>
-                          <button
-                            type="button"
-                            onClick={() => toggleStatus(student.id)}
-                            style={styles.statusButton}
-                          >
-                            {student.status === "Paid"
-                              ? "Mark Pending"
-                              : "Mark Paid"}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => sendSingleAlert(student)}
-                            style={styles.whatsappButton}
-                          >
-                            WhatsApp
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => deleteStudent(student.id)}
-                            style={styles.deleteButton}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div style={styles.tableFooter}>
-            Showing {filteredStudents.length} of {students.length} students
-          </div>
-        </section>
-
-        <footer style={styles.footer}>
-          <strong>Shree Medha StudyHall</strong>
-          <span>Student Fee Management Dashboard</span>
-        </footer>
+                          {student.status === 'Paid' ? 'Mark Pending' : 'Mark Paid'}
+                        </button>
+                        <button 
+                          onClick={() => sendWhatsAppAlert(student)} 
+                          style={styles.whatsappBtn}
+                        >
+                          WhatsApp
+                        </button>
+                        <button 
+                          onClick={() => deleteStudent(student.id)} 
+                          style={styles.deleteBtn}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </main>
-  );
-}
-
-function StatCard({ title, value, color, icon }) {
-  return (
-    <div style={styles.statCard}>
-      <div style={{ ...styles.statIcon, color }}>
-        {icon}
-      </div>
-
-      <div style={styles.statText}>
-        <p style={styles.statTitle}>{title}</p>
-        <h3 style={{ ...styles.statValue, color }}>{value}</h3>
-      </div>
-    </div>
-  );
-}
-
-function FormField({ label, children }) {
-  return (
-    <div style={styles.field}>
-      <label style={styles.label}>{label}</label>
-      {children}
     </div>
   );
 }
 
 const styles = {
-  page: {
-    minHeight: "100vh",
-    backgroundColor: "#f1f5f9",
-    padding: "20px 12px",
-    boxSizing: "border-box",
-    fontFamily: "Inter, Arial, sans-serif",
-    color: "#1e293b",
-  },
-
   container: {
-    maxWidth: "1250px",
-    margin: "0 auto",
+    maxWidth: '1100px',
+    margin: '20px auto',
+    padding: '20px',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    color: '#333',
+    backgroundColor: '#f3f4f6',
+    borderRadius: '16px',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.08)'
   },
-
   banner: {
-    position: "relative",
-    overflow: "hidden",
-    backgroundImage:
-      "linear-gradient(120deg, rgba(15,23,42,0.96), rgba(30,64,175,0.88)), url('https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1400&q=80')",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    borderRadius: "18px",
-    padding: "36px 24px",
-    color: "#ffffff",
-    marginBottom: "22px",
-    boxShadow: "0 12px 30px rgba(15,23,42,0.14)",
-    boxSizing: "border-box",
+    backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.85)), url('https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80')`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    borderRadius: '12px',
+    padding: '36px 20px',
+    textAlign: 'center',
+    color: '#ffffff',
+    marginBottom: '20px',
+    boxShadow: '0 4px 15px rgba(0,0,0,0.15)'
   },
-
-  bannerContent: {
-    textAlign: "center",
+  overlay: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center'
   },
-
-  brandIcon: {
-    width: "54px",
-    height: "54px",
-    borderRadius: "16px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    margin: "0 auto 14px",
-    backgroundColor: "#38bdf8",
-    color: "#082f49",
-    fontWeight: "900",
-    fontSize: "19px",
+  badgeTop: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    padding: '6px 14px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: '600',
+    marginBottom: '10px',
+    backdropFilter: 'blur(5px)',
+    letterSpacing: '0.5px'
   },
-
-  eyebrow: {
-    fontSize: "11px",
-    letterSpacing: "2px",
-    color: "#bae6fd",
-    fontWeight: "700",
-    margin: "0 0 12px",
-  },
-
   title: {
-    fontSize: "clamp(26px, 5vw, 42px)",
-    fontWeight: "800",
-    margin: "0 0 10px",
-    lineHeight: 1.2,
+    fontSize: '32px',
+    fontWeight: '800',
+    color: '#ffffff',
+    marginBottom: '8px',
+    letterSpacing: '-0.5px'
   },
-
   highlight: {
-    color: "#38bdf8",
+    color: '#38bdf8',
+    textShadow: '0 2px 8px rgba(56, 189, 248, 0.4)'
   },
-
   subtitle: {
-    color: "#dbeafe",
-    fontSize: "14px",
-    margin: 0,
-    lineHeight: 1.6,
+    color: '#cbd5e1',
+    fontSize: '14px',
+    fontWeight: '400',
+    margin: 0
   },
-
-  notice: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "12px",
-    padding: "12px 16px",
-    marginBottom: "18px",
-    borderRadius: "10px",
-    backgroundColor: "#dbeafe",
-    color: "#1e40af",
-    fontSize: "13px",
-    fontWeight: "600",
-  },
-
-  noticeClose: {
-    border: "none",
-    background: "transparent",
-    fontSize: "22px",
-    cursor: "pointer",
-    color: "#1e40af",
-  },
-
   statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-    gap: "14px",
-    marginBottom: "22px",
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: '14px',
+    marginBottom: '20px'
   },
-
   statCard: {
-    display: "flex",
-    alignItems: "center",
-    gap: "14px",
-    backgroundColor: "#ffffff",
-    padding: "20px",
-    borderRadius: "14px",
-    border: "1px solid #e2e8f0",
-    boxShadow: "0 3px 10px rgba(15,23,42,0.03)",
-    minWidth: 0,
+    backgroundColor: '#ffffff',
+    borderRadius: '12px',
+    padding: '16px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04)'
   },
-
   statIcon: {
-    width: "46px",
-    height: "46px",
-    borderRadius: "12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f1f5f9",
-    fontSize: "21px",
-    flexShrink: 0,
+    width: '42px',
+    height: '42px',
+    borderRadius: '10px',
+    backgroundColor: '#e0f2fe',
+    color: '#0284c7',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '18px'
   },
-
-  statText: {
-    minWidth: 0,
+  statLabel: {
+    fontSize: '12px',
+    color: '#64748b',
+    fontWeight: '600'
   },
-
-  statTitle: {
-    fontSize: "12px",
-    color: "#64748b",
-    margin: "0 0 7px",
-    fontWeight: "600",
-  },
-
   statValue: {
-    fontSize: "clamp(19px, 2.5vw, 25px)",
-    margin: 0,
-    fontWeight: "800",
-    overflowWrap: "anywhere",
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#0f172a',
+    marginTop: '2px'
   },
-
   card: {
-    backgroundColor: "#ffffff",
-    padding: "clamp(16px, 3vw, 26px)",
-    borderRadius: "16px",
-    marginBottom: "22px",
-    border: "1px solid #e2e8f0",
-    boxShadow: "0 5px 18px rgba(15,23,42,0.04)",
-    boxSizing: "border-box",
+    backgroundColor: '#ffffff',
+    padding: '24px',
+    borderRadius: '12px',
+    marginBottom: '20px',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
   },
-
-  sectionHeading: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: "14px",
-    marginBottom: "22px",
+  cardHeaderRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+    flexWrap: 'wrap',
+    gap: '12px'
   },
-
   cardTitle: {
-    fontSize: "20px",
-    fontWeight: "800",
-    color: "#0f172a",
-    margin: "0 0 6px",
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#1e293b',
+    margin: 0
   },
-
-  muted: {
-    fontSize: "13px",
-    color: "#64748b",
-    margin: 0,
-    lineHeight: 1.6,
-  },
-
-  headingIcon: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "38px",
-    height: "38px",
-    backgroundColor: "#dbeafe",
-    color: "#2563eb",
-    borderRadius: "10px",
-    fontSize: "25px",
-    fontWeight: "600",
-  },
-
   form: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-    gap: "18px",
-    alignItems: "end",
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+    gap: '14px',
+    alignItems: 'end',
+    marginTop: '12px'
   },
-
-  field: {
-    minWidth: 0,
-  },
-
   label: {
-    display: "block",
-    fontSize: "12px",
-    fontWeight: "700",
-    color: "#475569",
-    marginBottom: "8px",
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#475569',
+    display: 'block',
+    marginBottom: '6px'
   },
-
   input: {
-    width: "100%",
-    height: "43px",
-    padding: "10px 12px",
-    border: "1px solid #cbd5e1",
-    borderRadius: "9px",
-    fontSize: "13px",
-    backgroundColor: "#f8fafc",
-    color: "#0f172a",
-    boxSizing: "border-box",
-    outline: "none",
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    border: '1px solid #cbd5e1',
+    fontSize: '14px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    backgroundColor: '#f8fafc'
   },
-
-  formButtonWrapper: {
-    display: "flex",
-    alignItems: "end",
-  },
-
   addButton: {
-    width: "100%",
-    minHeight: "43px",
-    padding: "11px 16px",
-    backgroundColor: "#2563eb",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "9px",
-    fontSize: "13px",
-    fontWeight: "700",
-    cursor: "pointer",
+    padding: '11px 16px',
+    backgroundColor: '#0284c7',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: '600',
+    fontSize: '14px',
+    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.3)'
   },
-
-  bulkButton: {
-    minHeight: "42px",
-    padding: "11px 16px",
-    backgroundColor: "#15803d",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "9px",
-    fontSize: "12px",
-    fontWeight: "700",
-    cursor: "pointer",
+  bulkWhatsappBtn: {
+    padding: '10px 16px',
+    backgroundColor: '#16a34a',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    fontWeight: '600',
+    fontSize: '13px',
+    cursor: 'pointer',
+    boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)'
   },
-
-  toolbar: {
-    display: "flex",
-    gap: "12px",
-    marginBottom: "18px",
-    flexWrap: "wrap",
+  filterRow: {
+    display: 'flex',
+    gap: '12px',
+    marginBottom: '16px',
+    flexWrap: 'wrap'
   },
-
   searchInput: {
-    flex: "1 1 240px",
-    minWidth: 0,
-    height: "42px",
-    padding: "10px 13px",
-    border: "1px solid #cbd5e1",
-    borderRadius: "9px",
-    backgroundColor: "#f8fafc",
-    color: "#0f172a",
-    fontSize: "13px",
-    boxSizing: "border-box",
+    flex: 1,
+    minWidth: '200px',
+    padding: '9px 12px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '8px',
+    fontSize: '13px'
   },
-
-  select: {
-    minWidth: "140px",
-    height: "42px",
-    padding: "9px 12px",
-    border: "1px solid #cbd5e1",
-    borderRadius: "9px",
-    backgroundColor: "#ffffff",
-    color: "#334155",
-    fontSize: "13px",
-    boxSizing: "border-box",
+  filterSelect: {
+    padding: '9px 12px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '8px',
+    fontSize: '13px',
+    backgroundColor: '#fff'
   },
-
   tableWrapper: {
-    width: "100%",
-    overflowX: "auto",
-    border: "1px solid #e2e8f0",
-    borderRadius: "10px",
+    overflowX: 'auto'
   },
-
   table: {
-    width: "100%",
-    minWidth: "900px",
-    borderCollapse: "collapse",
-    textAlign: "left",
+    width: '100%',
+    borderCollapse: 'collapse',
+    textAlign: 'left'
   },
-
+  trHead: {
+    backgroundColor: '#f8fafc',
+    borderBottom: '2px solid #e2e8f0'
+  },
   th: {
-    padding: "14px 12px",
-    backgroundColor: "#f1f5f9",
-    color: "#475569",
-    fontSize: "11px",
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: "0.4px",
-    borderBottom: "1px solid #e2e8f0",
-    whiteSpace: "nowrap",
+    padding: '12px 10px',
+    fontSize: '12px',
+    fontWeight: '700',
+    color: '#475569'
   },
-
+  tr: {
+    borderBottom: '1px solid #e2e8f0'
+  },
   td: {
-    padding: "14px 12px",
-    fontSize: "12px",
-    color: "#475569",
-    borderBottom: "1px solid #f1f5f9",
-    verticalAlign: "middle",
-    whiteSpace: "nowrap",
+    padding: '12px 10px',
+    fontSize: '13px',
+    color: '#475569'
   },
-
-  studentName: {
-    color: "#0f172a",
-    fontSize: "13px",
-  },
-
-  amountCell: {
-    padding: "14px 12px",
-    fontSize: "13px",
-    fontWeight: "800",
-    color: "#047857",
-    borderBottom: "1px solid #f1f5f9",
-    whiteSpace: "nowrap",
-  },
-
   badge: {
-    display: "inline-block",
-    padding: "6px 10px",
-    borderRadius: "20px",
-    fontSize: "11px",
-    fontWeight: "800",
+    padding: '4px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: '600',
+    display: 'inline-block'
   },
-
-  paidBadge: {
-    color: "#166534",
-    backgroundColor: "#dcfce7",
+  actionGroup: {
+    display: 'flex',
+    gap: '6px'
   },
-
-  pendingBadge: {
-    color: "#9a3412",
-    backgroundColor: "#ffedd5",
+  actionBtn: {
+    border: 'none',
+    color: '#fff',
+    padding: '6px 10px',
+    borderRadius: '6px',
+    fontSize: '11px',
+    fontWeight: '600',
+    cursor: 'pointer'
   },
-
-  actions: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "6px",
-    alignItems: "center",
+  whatsappBtn: {
+    border: 'none',
+    backgroundColor: '#22c55e',
+    color: '#fff',
+    padding: '6px 10px',
+    borderRadius: '6px',
+    fontSize: '11px',
+    fontWeight: '600',
+    cursor: 'pointer'
   },
-
-  statusButton: {
-    padding: "7px 9px",
-    backgroundColor: "#2563eb",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "11px",
-    fontWeight: "700",
-    cursor: "pointer",
+  deleteBtn: {
+    border: 'none',
+    backgroundColor: '#fee2e2',
+    color: '#dc2626',
+    padding: '6px 10px',
+    borderRadius: '6px',
+    fontSize: '11px',
+    fontWeight: '600',
+    cursor: 'pointer'
   },
-
-  whatsappButton: {
-    padding: "7px 9px",
-    backgroundColor: "#16a34a",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "11px",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-
-  deleteButton: {
-    padding: "7px 9px",
-    backgroundColor: "#fee2e2",
-    color: "#b91c1c",
-    border: "1px solid #fecaca",
-    borderRadius: "6px",
-    fontSize: "11px",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-
   empty: {
-    padding: "35px 15px",
-    textAlign: "center",
-    color: "#64748b",
-    fontSize: "13px",
-  },
-
-  tableFooter: {
-    paddingTop: "14px",
-    fontSize: "12px",
-    color: "#64748b",
-  },
-
-  footer: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: "8px",
-    padding: "10px 4px",
-    color: "#64748b",
-    fontSize: "12px",
-  },
+    textAlign: 'center',
+    padding: '24px',
+    color: '#94a3b8'
+  }
 };
